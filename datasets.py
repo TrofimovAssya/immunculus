@@ -8,7 +8,9 @@ class TCRDataset(Dataset):
     """TCR dataset"""
 
     def __init__(self,root_dir='.',save_dir='.',data_file='data.npy',
-                 target_file = 'target.npy', batchsize=128, test=False):
+                 target_file = 'target.npy', batchsize=128,
+                 reload = False, shuffle_list = None,
+                 batch_list = None, valid_list = None):
 
 
         data_path = os.path.join(root_dir, data_file)
@@ -20,18 +22,25 @@ class TCRDataset(Dataset):
         ### dividing the target by the max target
         self.target /=np.max(self.target)
         self.target *=10
-        ### permuting the dataset 
-        examplelist = np.arange(self.data.shape[0])
-        self.examplelist = np.random.permutation(examplelist)
-        ### calculating the number of batches
-        ### ceiling division (upside down floor)
-        nb_batches = -(-self.examplelist.shape[0]//self.batchsize)
-        batchlist = np.arange(nb_batches)
-        self.batchlist = np.random.permutation(batchlist)
 
-        ### taking 80% cutoff from the batches
-        cutoff = int(0.8*self.batchlist.shape[0])
-        self.valid_ixs = self.batchlist[cutoff:]
+        ### permuting the dataset or loading the index order
+        if reload:
+            self.examplelist = shuffle_list
+            self.batchlist = batch_list
+            self.valid_ix = valid_list
+        else:
+            examplelist = np.arange(self.data.shape[0])
+            self.examplelist = np.random.permutation(examplelist)
+
+            ### calculating the number of batches
+            ### ceiling division (upside down floor)
+            nb_batches = -(-self.examplelist.shape[0]//self.batchsize)
+            batchlist = np.arange(nb_batches)
+            self.batchlist = np.random.permutation(batchlist)
+
+            ### taking 80% cutoff from the batches
+            cutoff = int(0.8*self.batchlist.shape[0])
+            self.valid_ixs = self.batchlist[cutoff:]
 
 
     def __len__(self):
@@ -59,15 +68,17 @@ class TCRDataset(Dataset):
         return self.examplelist.shape[0]
 
 
-def get_dataset(opt,exp_dir, test=False):
+def get_dataset(opt,exp_dir, reload=False, shuffle_list = None,
+                batch_list=None, valid_list = None):
 
     # All of the different datasets.
 
     if opt.dataset == 'tcr':
         dataset = TCRDataset(root_dir=opt.data_dir, save_dir = exp_dir,
                              data_file = opt.data_file, target_file =
-                             opt.target_file, batchsize = opt.batchsize, 
-                            test=test)
+                             opt.target_file, batchsize = opt.batchsize,
+                            reload = reload, shuffle_list,
+                             batch_list, valid_list)
     else:
         raise NotImplementedError()
 

@@ -2,6 +2,7 @@
 import torch
 import pdb
 import numpy as np
+import pandas as pd
 from torch.autograd import Variable
 import os
 import argparse
@@ -45,6 +46,7 @@ def build_parser():
     # Monitoring options
     parser.add_argument('--load-folder', help='The folder where to load and restart the training.')
     parser.add_argument('--save-dir', default='./testing123/', help='The folder where everything will be saved.')
+    parser.add_argument('--reload', default=False, type=bool, help='should be true if reloading an experiment')
 
     return parser
 
@@ -72,7 +74,23 @@ def main(argv=None):
 
     # creating the dataset
     print ("Getting the dataset...")
-    dataset = datasets.get_dataset(opt,exp_dir)
+    ### making sure that if the experiment is reloaded we are
+    ### also reloading the shuffled list
+    if opt.reload:
+        dataset_shuffle = np.load(f'{exp_dir}/dataset_shufflelist.npy')
+        valid_list = np.load(f'{exp_dir}/dataset_validlist.npy')
+        batch_list = np.load(f'{exp_dir}/dataset_batchlist.npy')
+    else:
+        dataset_shuffle = None
+        valid_list = None
+        batch_list = None
+
+    dataset = datasets.get_dataset(opt,exp_dir,
+                                   reload=opt.reload,
+                                   dataset_shuffle,
+                                  batch_list,
+                                  valid_list)
+
 
     # Creating a model
     print ("Getting the model...")
@@ -188,7 +206,8 @@ def main(argv=None):
     print (opt.target_file)
 
 
-    dataset = datasets.get_dataset(opt,exp_dir,test=True)
+    dataset = datasets.get_dataset(opt,exp_dir,reload=False)
+
     ###  saving the shuffled order as well as the shuffled dataset.
     original_dataset = pd.read_csv(f'{opt.data_dir}/tcrispublic_{test_pt}.tsv',
                index_col=0)
