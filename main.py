@@ -35,7 +35,7 @@ def build_parser():
     parser.add_argument('--tcr-conv-layers-sizes', default=[20,1,18], type=int, nargs='+', help='TCR-Conv net config.')
     parser.add_argument('--mlp-layers-size', default=[250, 75, 50, 25, 10], type=int, nargs='+', help='MLP config')
     parser.add_argument('--emb_size', default=10, type=int, help='The size of the embeddings.')
-    parser.add_argument('--loss', choices=['NLL', 'MSE'], default = 'MSE', help='The cost function to use')
+    parser.add_argument('--loss', choices=['PCC', 'MSE','RMSE'], default = 'MSE', help='The cost function to use')
     parser.add_argument('--weight-decay', default=0, type=float, help='Weight decay parameter.')
     parser.add_argument('--model', choices=['tcr'], help='Model to use')
     parser.add_argument('--cpu', action='store_true', help='True if no gpu to be used')
@@ -85,11 +85,7 @@ def main(argv=None):
         valid_list = None
         batch_list = None
 
-    dataset = datasets.get_dataset(opt,exp_dir,
-                                   reload=opt.reload,
-                                   dataset_shuffle,
-                                  batch_list,
-                                  valid_list)
+    dataset = datasets.get_dataset(opt,exp_dir, opt.reload,dataset_shuffle,batch_list,valid_list)
 
 
     # Creating a model
@@ -97,8 +93,28 @@ def main(argv=None):
 
     my_model, optimizer, epoch, opt = monitoring.load_checkpoint(exp_dir, opt)
 
-    # Training optimizer and stuff
-    criterion = torch.nn.MSELoss()
+    def RMSE(x,y):
+        return torch.sqrt(torch.mean((x-y)**2))
+
+    def PCC(x,y):
+
+        vx = x - torch.mean(x)
+        vy = y - torch.mean(y)
+
+        cost = torch.sum(vx * vy) / (torch.sqrt(torch.sum(vx ** 2)) *
+                                     torch.sqrt(torch.sum(vy ** 2)))
+        cost = 1-(cost**2)
+        return cost
+
+        #return torch.sqrt(torch.mean((yhat-y)**2))
+
+    #Training optimizer and stuff
+    if opt.loss=='MSE':
+        criterion = torch.nn.MSELoss()
+    elif opt.loss == 'PCC':
+        criterion = PCC
+    elif opt.loss == 'RMSE':
+        criterion = RMSE
 
     if not opt.cpu:
         print ("Putting the model on gpu...")

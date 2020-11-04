@@ -27,7 +27,7 @@ class TCRDataset(Dataset):
         if reload:
             self.examplelist = shuffle_list
             self.batchlist = batch_list
-            self.valid_ix = valid_list
+            self.valid_ixs = valid_list
         else:
             examplelist = np.arange(self.data.shape[0])
             self.examplelist = np.random.permutation(examplelist)
@@ -77,8 +77,8 @@ def get_dataset(opt,exp_dir, reload=False, shuffle_list = None,
         dataset = TCRDataset(root_dir=opt.data_dir, save_dir = exp_dir,
                              data_file = opt.data_file, target_file =
                              opt.target_file, batchsize = opt.batchsize,
-                            reload = reload, shuffle_list,
-                             batch_list, valid_list)
+                            reload = reload, shuffle_list = shuffle_list,
+                             batch_list = batch_list, valid_list = valid_list)
     else:
         raise NotImplementedError()
 
