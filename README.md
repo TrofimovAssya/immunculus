@@ -8,4 +8,4 @@ Build a classifier that given a CDR3 amino-acid sequence predicts how frequent t
 
 TCRseq data from the Emerson et al. 2017 Nat Gen. publication
 
-![](imgs/coverimage.png)
+![](imgs/coverimage2.png)
