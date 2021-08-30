@@ -1,57 +1,53 @@
-#!/usr/bin/env python
-import torch
-import pdb
-import numpy as np
-import pandas as pd
-from torch.autograd import Variable
-import os
 import argparse
 import datasets
-import models
-import pickle
-import time
 import monitoring
-#
+import numpy as np
+import torch
+from torch.autograd import Variable
+from torch import nn
+from tqdm import tqdm
+
+
 def build_parser():
+    """Argument parser."""
     parser = argparse.ArgumentParser(description="")
 
-    ### Hyperparameter options
-    parser.add_argument('--epoch', default=10, type=int, help='The number of epochs we want ot train the network.')
+    # Hyperparameter options
+    parser.add_argument('--epoch', default=1000, type=int, help='The number of epochs we want ot train the network.')
     parser.add_argument('--seed', default=260389, type=int, help='Seed for random initialization and stuff.')
-    parser.add_argument('--batch-size', default=10000, type=int, help="The batch size.")
+    parser.add_argument('--batch-size', default=100, type=int, help="The batch size.")
     parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--momentum', default=0.9, type=float, help='momentum')
 
-    ### Dataset specific options
+    # Dataset specific options
     parser.add_argument('--data-dir', default='./data/', help='The folder contaning the dataset.')
     parser.add_argument('--data-file', default='.', help='The data file with the dataset.')
     parser.add_argument('--target-file', default='.', help='The data file with the dataset.')
-    parser.add_argument('--dataset', choices=['tcr'], help='Which dataset to use.')
-    parser.add_argument('--batchsize', default=128,type=int, help='batch size')
-    parser.add_argument('--tcr-size', default=27,type=int, help='tcr length')
-
+    parser.add_argument('--dataset', default='tcr', choices=['tcr'], help='Which dataset to use.')
+    parser.add_argument('--batchsize', default=128, type=int, help='batch size')
+    parser.add_argument('--tcr-size', default=27, type=int, help='tcr length')
 
     # Model specific options
-    parser.add_argument('--tcr-conv-layers-sizes', default=[20,1,18], type=int, nargs='+', help='TCR-Conv net config.')
-    parser.add_argument('--mlp-layers-size', default=[250, 75, 50, 25, 10], type=int, nargs='+', help='MLP config')
+    parser.add_argument('--tcr-conv-layers-sizes', default=[20, 20, 10, 20, 1,
+                                                           9], type=int, nargs='+', help='TCR-Conv net config')
+    parser.add_argument('--mlp-layers-size', default=[150, 50, 10], type=int, nargs='+', help='MLP config')
     parser.add_argument('--emb_size', default=10, type=int, help='The size of the embeddings.')
-    parser.add_argument('--loss', choices=['PCC', 'MSE','RMSE'], default = 'MSE', help='The cost function to use')
+    parser.add_argument('--loss', choices=['NLL', 'MSE'], default='MSE', help='The cost function to use')
     parser.add_argument('--weight-decay', default=0, type=float, help='Weight decay parameter.')
-    parser.add_argument('--model', choices=['tcr'], help='Model to use')
+    parser.add_argument('--model', default='tcr', choices=['tcr'], help='Model to use')
     parser.add_argument('--cpu', action='store_true', help='True if no gpu to be used')
     parser.add_argument('--name', type=str, default=None, help="If we want to add a random str to the folder.")
     parser.add_argument('--gpu-selection', type=int, default=0, help="gpu selection")
 
-
     # Monitoring options
     parser.add_argument('--load-folder', help='The folder where to load and restart the training.')
     parser.add_argument('--save-dir', default='./testing123/', help='The folder where everything will be saved.')
-    parser.add_argument('--reload', default=False, type=bool, help='should be true if reloading an experiment')
 
     return parser
 
-def parse_args(argv):
 
+def parse_args(argv):
+    """creating the opt dictionary."""
     if type(argv) == list or argv is None:
         opt = build_parser().parse_args(argv)
     else:
@@ -59,62 +55,32 @@ def parse_args(argv):
 
     return opt
 
-def main(argv=None):
 
+def main(argv=None):
+    """Main."""
     opt = parse_args(argv)
-    # TODO: set the seed
     seed = opt.seed
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.manual_seed(seed)
 
     exp_dir = opt.load_folder
-    if exp_dir is None: # we create a new folder if we don't load.
+    if exp_dir is None:  # we create a new folder if we don't load.
         exp_dir = monitoring.create_experiment_folder(opt)
 
     # creating the dataset
-    print ("Getting the dataset...")
-    ### making sure that if the experiment is reloaded we are
-    ### also reloading the shuffled list
-    if opt.reload:
-        dataset_shuffle = np.load(f'{exp_dir}/dataset_shufflelist.npy')
-        valid_list = np.load(f'{exp_dir}/dataset_validlist.npy')
-        batch_list = np.load(f'{exp_dir}/dataset_batchlist.npy')
-    else:
-        dataset_shuffle = None
-        valid_list = None
-        batch_list = None
-
-    dataset = datasets.get_dataset(opt,exp_dir, opt.reload,dataset_shuffle,batch_list,valid_list)
-
+    print("Getting the dataset...")
+    dataset = datasets.get_dataset(opt, exp_dir)
 
     # Creating a model
-    print ("Getting the model...")
+    print("Getting the model...")
 
     my_model, optimizer, epoch, opt = monitoring.load_checkpoint(exp_dir, opt)
 
-    def RMSE(x,y):
-        return torch.sqrt(torch.mean((x-y)**2))
+    # Training optimizer and stuff
+    criterion = nn.NLLLoss()
+    criterion = nn.CrossEntropyLoss()
 
-    def PCC(x,y):
-
-        vx = x - torch.mean(x)
-        vy = y - torch.mean(y)
-
-        cost = torch.sum(vx * vy) / (torch.sqrt(torch.sum(vx ** 2)) *
-                                     torch.sqrt(torch.sum(vy ** 2)))
-        cost = 1-(cost**2)
-        return cost
-
-        #return torch.sqrt(torch.mean((yhat-y)**2))
-
-    #Training optimizer and stuff
-    if opt.loss=='MSE':
-        criterion = torch.nn.MSELoss()
-    elif opt.loss == 'PCC':
-        criterion = PCC
-    elif opt.loss == 'RMSE':
-        criterion = RMSE
 
     if not opt.cpu:
         print ("Putting the model on gpu...")
@@ -123,152 +89,95 @@ def main(argv=None):
     # The training.
     print ("Start training.")
 
-
-    loss_dict = {}
-    loss_dict['train_losses'] = []
-    loss_dict['valid_losses'] = []
-    valid_list = dataset.dataset.valid_ixs
-    datasetsize = (dataset.dataset.batchlist.shape[0])
-
-    current_pt = opt.target_file.split('_')[0]
-
-    original_dataset = pd.read_csv(f'{opt.data_dir}/tcrispublic_{current_pt}.tsv',
-               index_col=0)
-    shuffled_original = original_dataset.iloc[dataset.dataset.examplelist,:]
-    shuffled_original.to_csv(f'{exp_dir}/dataset_shuffled.csv')
-
-    np.save(f'{exp_dir}/dataset_shufflelist.npy', dataset.dataset.examplelist)
-
-    np.save(f'{exp_dir}/dataset_batchlist.npy', dataset.dataset.batchlist)
-    np.save(f'{exp_dir}/dataset_validlist.npy', valid_list)
-
-    folderfiles = os.listdir(f'{exp_dir}')
-    if not 'tcr_representation' in folderfiles:
-        os.mkdir (f'{exp_dir}/tcr_representation')
-    if not 'tcr_preditions' in folderfiles:
-        os.mkdir (f'{exp_dir}/tcr_preditions')
+    monitoring_dic = {}
+    monitoring_dic['train_loss'] = []
+    monitoring_dic['valid_loss'] = []
+    monitoring_dic['train_accuracy'] = []
+    monitoring_dic['valid_accuracy'] = []
+    max_accuracy = 0
+    min_loss = 10000
+    patience = 5
 
     for t in range(epoch, opt.epoch):
+        if patience==0:
+            break
+        thisepoch_trainloss = []
+        thisepoch_trainaccuracy = []
 
-        loss_dict = monitoring.update_loss_dict(loss_dict,start = True)
+        with tqdm(dataset, unit="batch") as tepoch:
+            for mini in tepoch:
 
-        for no_b, mini in enumerate(dataset):
+                tepoch.set_description(f"Epoch {t}")
+                inputs, targets = mini[0], mini[1]
 
-            inputs, targets = mini[0], mini[1]
+                inputs = Variable(inputs, requires_grad=False).float()
+                targets = Variable(targets, requires_grad=False).long()
 
-            inputs = Variable(inputs, requires_grad=False).float()
-            targets = Variable(targets, requires_grad=False).float()
+                if not opt.cpu:
+                    inputs = inputs.cuda(opt.gpu_selection)
+                    targets = targets.cuda(opt.gpu_selection)
 
-            if not opt.cpu:
-                inputs = inputs.cuda(opt.gpu_selection)
-                targets = targets.cuda(opt.gpu_selection)
-
-            y_pred = my_model(inputs).float()
-
-            targets = torch.reshape(targets,(targets.shape[1],1))
-
-            loss = criterion(y_pred, targets)
-            loss_save = loss.data.cpu().numpy().reshape(1,)[0]
-
-            ### saving the tcr representation
-            representation = my_model.encode_tcr(inputs.squeeze().permute(0,2,1))
-            representation = representation.data.cpu().numpy()
-            batchnb = dataset.dataset.batchlist[no_b]
-            np.save(f'{exp_dir}/tcr_representation/{no_b}_{batchnb}_tcremb.npy',representation)
-
-            ### saving the tcr predictions
-            predictions = y_pred.data.cpu().numpy()
-            real = targets.data.cpu().numpy()
-            predictions = np.hstack((predictions,real))
-            np.save(f'{exp_dir}/tcr_preditions/{no_b}_{batchnb}_tcrpred.npy',predictions)
-
-
-            if no_b in valid_list:
-                loss_dict['valid_losses_epoch'].append(loss_save)
-                if no_b%100==0:
-                    print (f'epoch {t}: {no_b}/{datasetsize}: Loss - {loss_save} (valid)')
-            else:
-                loss_dict['train_losses_epoch'].append(loss_save)
-                if no_b%100==0:
-                    print (f'epoch {t}: {no_b}/{datasetsize}: Loss - {loss_save}')
                 optimizer.zero_grad()
+                y_pred = my_model(inputs).float()
+                #y_pred = torch.reshape(y_pred, (y_pred.shape[0], ))
+
+                #targets = torch.reshape(targets, (targets.shape[1], 1))
+
+                loss = criterion(y_pred, targets)
+                to_list = loss.cpu().data.numpy().reshape((1, ))[0]
+                thisepoch_trainloss.append(to_list)
+
+
                 loss.backward()
                 optimizer.step()
+                accuracy = np.sum(np.argmax(y_pred.cpu().data.numpy(),axis=1) ==
+                       targets.cpu().data.numpy())/targets.shape[0]
+                thisepoch_trainaccuracy.append(accuracy)
+                tepoch.set_postfix(loss=loss.item(), accuracy=accuracy)
 
-
-
-        monitoring.save_checkpoint(my_model, optimizer, t, opt, exp_dir)
-        monitoring.update_loss_dict(loss_dict, start=False)
-        np.save(f'{exp_dir}/validation_loss.npy',loss_dict['valid_losses'])
-        np.save(f'{exp_dir}/training_loss.npy',loss_dict['train_losses'])
-
-
-    print ('Done training!')
-    print ('Doing testing...')
-    ### The patient possibilities for testing
-    possibilities = ['HIP19717', 'HIP03505']
-    current_pt = opt.target_file.split('_')[0]
-    test_pt = np.random.choice(possibilities)
-    while current_pt == test_pt:
-        test_pt = np.random.choice(possibilities)
-    print (f'selected test patient is {test_pt}')
-    suffix = opt.target_file.split('_')[1]
-    opt.target_file =f'{test_pt}_{suffix}'
-
-    suffix = '_'.join(opt.data_file.split('_')[1:])
-    opt.data_file = f'{test_pt}_{suffix}'
-    print (f'New datafiles: ')
-    print (opt.data_file)
-    print (opt.target_file)
-
-
-    dataset = datasets.get_dataset(opt,exp_dir,reload=False)
-
-    ###  saving the shuffled order as well as the shuffled dataset.
-    original_dataset = pd.read_csv(f'{opt.data_dir}/tcrispublic_{test_pt}.tsv',
-               index_col=0)
-    shuffled_original = original_dataset.iloc[dataset.dataset.examplelist,:]
-    shuffled_original.to_csv(f'{exp_dir}/test_dataset_shuffled_{test_pt}.csv')
-    np.save(f'{exp_dir}/test_dataset_shufflelist_{test_pt}.npy', dataset.dataset.examplelist)
-    np.save(f'{exp_dir}/test_dataset_batchlist_{test_pt}.npy', dataset.dataset.batchlist)
-
-    if not 'test_tcr_representation' in folderfiles:
-        os.mkdir (f'{exp_dir}/test_tcr_representation')
-    if not 'test_tcr_preditions' in folderfiles:
-        os.mkdir (f'{exp_dir}/test_tcr_preditions')
-
-
-
-    for no_b, mini in enumerate(dataset):
-
-        inputs, targets = mini[0], mini[1]
-
+        inputs = dataset.dataset.valid_inputs
+        inputs = torch.FloatTensor(inputs)
         inputs = Variable(inputs, requires_grad=False).float()
-        targets = Variable(targets, requires_grad=False).float()
+
+
+        targets = dataset.dataset.valid_targets
+        targets = torch.FloatTensor(targets)
+        targets = Variable(targets, requires_grad=False).long()
 
         if not opt.cpu:
             inputs = inputs.cuda(opt.gpu_selection)
             targets = targets.cuda(opt.gpu_selection)
 
-        y_pred = my_model(inputs).float()
+        with torch.no_grad():
+            y_pred = my_model(inputs)
+            vloss = criterion(y_pred, targets)
 
-        targets = torch.reshape(targets,(targets.shape[1],1))
+        accuracy = np.sum(np.argmax(y_pred.cpu().data.numpy(),axis=1) ==
+                          targets.cpu().data.numpy())/targets.shape[0]
+        split = np.sum(targets.cpu().data.numpy())/targets.shape[0]
 
-        loss = criterion(y_pred, targets)
-        print(loss)
+        vloss = vloss.cpu().data.numpy().reshape((1,))[0]
+        if vloss<min_loss:
+            monitoring.save_checkpoint(my_model, optimizer, t, opt, exp_dir)
+            print(f'*** new min loss*** Validation loss: epoch {t}, loss: {vloss}, accuracy: {accuracy}, split {split}')
+            min_loss = vloss
+            patience = 5
+        else:
 
-        ### saving the tcr representation
-        representation = my_model.encode_tcr(inputs.squeeze().permute(0,2,1))
-        representation = representation.data.cpu().numpy()
-        batchnb = dataset.dataset.batchlist[no_b]
-        np.save(f'{exp_dir}/test_tcr_representation/{no_b}_{batchnb}_tcremb_{test_pt}.npy',representation)
+            print(f'Validation loss: epoch {t}, loss: {vloss}, accuracy:{accuracy}, split {split}')
+            patience -= 1
 
-        ### saving the tcr predictions
-        predictions = y_pred.data.cpu().numpy()
-        np.save(f'{exp_dir}/test_tcr_preditions/{no_b}_{batchnb}_tcrpred_{test_pt}.npy',predictions)
-
-
-
+        monitoring_dic['valid_loss'].append(vloss)
+        monitoring_dic['valid_accuracy'].append(accuracy)
+        monitoring_dic['train_loss'].append(np.mean(thisepoch_trainloss))
+        monitoring_dic['train_accuracy'].append(np.mean(thisepoch_trainaccuracy))
+        trainacc=np.mean(thisepoch_trainaccuracy)
+        print (f'Training accuracy: {trainacc}')
+        np.save(f'{exp_dir}/train_loss.npy',monitoring_dic['train_loss'])
+        np.save(f'{exp_dir}/valid_loss.npy',monitoring_dic['valid_loss'])
+        np.save(f'{exp_dir}/train_accuracy.npy',monitoring_dic['train_accuracy'])
+        np.save(f'{exp_dir}/valid_accuracy.npy',monitoring_dic['valid_accuracy'])
+    print ('Done training!')
 
 if __name__ == '__main__':
     main()

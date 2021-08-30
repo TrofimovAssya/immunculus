@@ -11,40 +11,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def get_hla_representations(model,hla_list_path):
-    hlas = np.load(hla_list_path)
-    reprez = np.zeros((hlas.shape[0],opt.emb_size))
-    for ix,hla in enumerate(hlas):
-        reprez[ix,:] = model.encode_hla(hla)
-    return reprez
-
-
-def get_tcr_representations(model,tcrs):
-    reprez = np.zeros((tcrs.shape[0],opt.emb_size))
-    for ix,tcr in enumerate(tcrs):
-        reprez[ix,:] = model.encode_tcr(tcr)
-    return reprez
-
-
 def save_loss(loss_dict,exp_dir):
     np.save(f'{exp_dir}/training_loss.npy',loss_dict['train_losses'])
     if 'valid_losses' in loss_dict:
         np.save(f'{exp_dir}/validation_loss.npy',loss_dict['valid_losses'])
 
-
-def update_loss_dict(loss_dict, start = False):
-    if start:
-        loss_dict['train_losses_epoch'] = []
-        if 'valid_losses' in loss_dict:
-            loss_dict['valid_losses_epoch'] = []
-
-    else:
-        loss_dict['train_losses'].append(np.mean(loss_dict['train_losses_epoch']))
-        loss_dict['train_losses_epoch'] = []
-        if 'valid_losses' in loss_dict:
-            loss_dict['valid_losses'].append(np.mean(loss_dict['valid_losses_epoch']))
-            loss_dict['valid_losses_epoch'] = []
-    return loss_dict
 
 def create_experiment_folder(opt):
 
@@ -69,21 +40,6 @@ def create_experiment_folder(opt):
         f.write('time: {} folder: {} experiment: {}\n'.format(datetime.datetime.now(), this_hash, params))
 
     return exp_dir
-
-def plot_training_curve(exp_dir, loss_dict):
-    train = loss_dict['train_losses']
-    plt.plot(np.arange(len(train)), train, c='orange', label='training')
-    if 'valid_losses' in loss_dict:
-        valid = loss_dict['valid_losses']
-        plt.plot(np.arange(len(valid)), valid, c='blue', label='validation')
-
-    plt.xlabel('epochs')
-    plt.ylabel('error')
-    plt.legend()
-
-    img_path = os.path.join(exp_dir,f'training_curve.png')
-    plt.savefig(img_path)
-
 
 
 def save_checkpoint(model, optimizer, epoch, opt, exp_dir, filename='checkpoint.pth.tar'):
@@ -147,10 +103,9 @@ def load_checkpoint(load_folder, opt, filename='checkpoint.pth.tar'):
         print ("Putting the model on gpu...")
         my_model.cuda(opt.gpu_selection)
 
-
     # Get the optimizer
-    optimizer = torch.optim.RMSprop(my_model.parameters(), lr=new_opt.lr, weight_decay=new_opt.weight_decay)
-    #optimizer = torch.optim.Adam(my_model.parameters(), lr=new_opt.lr, weight_decay=new_opt.weight_decay)
+    #optimizer = torch.optim.RMSprop(my_model.parameters(), lr=new_opt.lr, weight_decay=new_opt.weight_decay)
+    optimizer = torch.optim.Adam(my_model.parameters(), lr=new_opt.lr, weight_decay=new_opt.weight_decay)
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
 
