@@ -31,10 +31,12 @@ def build_parser():
     parser.add_argument('--tcr-conv-layers-sizes', default=[20, 20, 10, 20, 1,
                                                            9], type=int, nargs='+', help='TCR-Conv net config')
     parser.add_argument('--mlp-layers-size', default=[150, 50, 10], type=int, nargs='+', help='MLP config')
+    parser.add_argument('--nb-transformer-layers', default=5, type=int, help='nb transformer layers')
+    parser.add_argument('--nb-transformer-heads', default=10, type=int, help='nb transformer heads')
     parser.add_argument('--emb_size', default=10, type=int, help='The size of the embeddings.')
     parser.add_argument('--loss', choices=['NLL', 'MSE'], default='MSE', help='The cost function to use')
     parser.add_argument('--weight-decay', default=0, type=float, help='Weight decay parameter.')
-    parser.add_argument('--model', default='tcr', choices=['tcr'], help='Model to use')
+    parser.add_argument('--model', default='cnn', choices=['cnn','transformer'], help='Model to use')
     parser.add_argument('--cpu', action='store_true', help='True if no gpu to be used')
     parser.add_argument('--name', type=str, default=None, help="If we want to add a random str to the folder.")
     parser.add_argument('--gpu-selection', type=int, default=0, help="gpu selection")
