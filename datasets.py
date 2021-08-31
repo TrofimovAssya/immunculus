@@ -14,22 +14,18 @@ class TCRDataset(Dataset):
         self.tcr_data = self.get_dataset_fromfile(child, cb, 'tcr_data_train.csv')
 
         # Encode the datasets into onehot tensors
-        self.train_inputs = self.encode_as_onehot(self.tcr_data['cdr3aa'])
+        self.train_inputs = self.encode_inputs(self.tcr_data['cdr3aa'])
         self.targets = np.array(self.tcr_data['tcr_type'])
 
         # Splitting the dataset into train/valid/test
         permut = np.random.permutation(np.arange(self.tcr_data.shape[0]))
-        cutoff1 = int(0.8*self.tcr_data.shape[0])
-        cutoff2 = int(0.9*self.tcr_data.shape[0])
+        cutoff1 = int(0.9*self.tcr_data.shape[0])
 
         train_ix = permut[:cutoff1]
-        valid_ix = permut[cutoff1:cutoff2]
-        test_ix = permut[cutoff2:]
+        valid_ix = permut[cutoff1:]
 
         self.valid_inputs = self.train_inputs[valid_ix]
         self.valid_targets = self.targets[valid_ix]
-        self.test_inputs = self.train_inputs[test_ix]
-        self.test_targets = self.targets[test_ix]
         self.train_inputs = self.train_inputs[train_ix]
         self.targets = self.targets[train_ix]
 
@@ -39,6 +35,8 @@ class TCRDataset(Dataset):
                                                pheno_britanova['age'] > 0)]['file_name']
         cb = pheno_britanova[pheno_britanova['age'] == 0]
         cb = cb['file_name']
+        child = list(child)[:-1]
+        cb = list(cb)[:-1]
         return child, cb
 
     def get_dataset_fromfile(self, child, cb, filename):
@@ -92,6 +90,20 @@ class TCRDataset(Dataset):
             tcr_data = pd.read_csv(f'../CDR3_lists/{filename}', index_col=0)
         return tcr_data
 
+    def encode_inputs(self, cdr3_list):
+        nb_seq = len(cdr3_list)
+        amino_acid = self.get_aminoacid()
+        encoded_sequences = np.zeros((nb_seq, 27))
+
+        for ix,seq in tqdm(enumerate(cdr3_list), total=nb_seq):
+            for aix in range(min(len(seq),27)):
+                residue = seq[aix]
+                aa = amino_acid[residue]
+                encoded_sequences[ix,aix] = aa
+
+        return encoded_sequences
+
+
     def encode_as_onehot(self, cdr3_list):
         # the thing that will encode TCR as onehot tensors
         nb_seq = len(cdr3_list)
@@ -117,7 +129,7 @@ class TCRDataset(Dataset):
         amino_acid = ['A', 'C', 'D', 'E', 'F', 'G','H', 'I', 'K', 'L', 'M', 'N',
                      'P', 'Q','R', 'S', 'T', 'V', 'W', 'Y']
         amino_acid_dict = {}
-        ix = 0
+        ix = 1
         for aa in amino_acid:
             amino_acid_dict[aa] = ix
             ix += 1

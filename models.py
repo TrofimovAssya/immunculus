@@ -13,6 +13,8 @@ class CNNClassifier(nn.Module):
         self.emb_size = emb_size
         self.tcr_input_size = tcr_input_size
 
+        self.embeddings = nn.Embedding(21, 20)
+
         layers = []
         outsize = self.tcr_input_size
 
@@ -47,9 +49,9 @@ class CNNClassifier(nn.Module):
     def forward(self, x):
 
         # Get the embeddings
-        x = x.squeeze()
-        x = x.permute(0, 2, 1)
-        emb_tcr = self.encode_tcr(x)
+        emb_tcr = self.embeddings(x)
+        emb_tcr = emb_tcr.permute(0, 2, 1)
+        emb_tcr = self.encode_tcr(emb_tcr)
         mlp_input = emb_tcr.reshape((emb_tcr.shape[0],
                                    emb_tcr.shape[1]*emb_tcr.shape[2]))
         #mlp_input = emb_tcr.squeeze()

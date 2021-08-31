@@ -112,7 +112,7 @@ def main(argv=None):
                 tepoch.set_description(f"Epoch {t}")
                 inputs, targets = mini[0], mini[1]
 
-                inputs = Variable(inputs, requires_grad=False).float()
+                inputs = Variable(inputs, requires_grad=False).long()
                 targets = Variable(targets, requires_grad=False).long()
 
                 if not opt.cpu:
@@ -139,7 +139,7 @@ def main(argv=None):
 
         inputs = dataset.dataset.valid_inputs
         inputs = torch.FloatTensor(inputs)
-        inputs = Variable(inputs, requires_grad=False).float()
+        inputs = Variable(inputs, requires_grad=False).long()
 
 
         targets = dataset.dataset.valid_targets
