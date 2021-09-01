@@ -150,15 +150,25 @@ def main(argv=None):
             inputs = inputs.cuda(opt.gpu_selection)
             targets = targets.cuda(opt.gpu_selection)
 
-        with torch.no_grad():
-            y_pred = my_model(inputs)
-            vloss = criterion(y_pred, targets)
-
-        accuracy = np.sum(np.argmax(y_pred.cpu().data.numpy(),axis=1) ==
-                          targets.cpu().data.numpy())/targets.shape[0]
+        vlosses = []
+        accuracies = []
         split = np.sum(targets.cpu().data.numpy())/targets.shape[0]
 
-        vloss = vloss.cpu().data.numpy().reshape((1,))[0]
+        for i in tqdm(range(0,inputs.shape[0],100)):
+            with torch.no_grad():
+                y_pred = my_model(inputs[i:i+100])
+                vloss = criterion(y_pred, targets[i:i+100])
+
+            accuracy = np.sum(np.argmax(y_pred.cpu().data.numpy(),axis=1) ==
+                              targets[i:i+100].cpu().data.numpy())/y_pred.shape[0]
+
+            vloss = vloss.cpu().data.numpy().reshape((1,))[0]
+            vlosses.append(vloss)
+            accuracies.append(accuracy)
+
+        vloss = np.mean(vlosses)
+        accuracy = np.mean(accuracies)
+
         if vloss<min_loss:
             monitoring.save_checkpoint(my_model, optimizer, t, opt, exp_dir)
             print(f'*** new min loss*** Validation loss: epoch {t}, loss: {vloss}, accuracy: {accuracy}, split {split}')
